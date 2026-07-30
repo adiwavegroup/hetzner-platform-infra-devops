@@ -11,9 +11,24 @@ into GitOps makes the breakage look like a migration defect.
 > workload duties.** Public and internal IP `88.99.149.31`.
 
 Not "one master and one worker". Application pods schedule on `node1`, so the control-plane taint has
-either been removed or every workload tolerates it. **There is no high availability of any kind**, and
-settings that imply it — `maxSurge: 0`, PodDisruptionBudgets, anti-affinity — protect against nothing
-but themselves on a single node.
+either been removed or every workload tolerates it.
+
+**The cluster has no node-level high availability.** Rollout and voluntary-disruption controls remain
+useful; they simply cannot protect against failure of the only node. An earlier draft of this document
+overstated that as "protect nothing", which is wrong:
+
+- **`maxSurge: 1` is still useful.** Kubernetes can start the replacement pod alongside the existing
+  one on the same node, given spare CPU/memory, no port conflict and no exclusive volume attachment —
+  so it genuinely reduces downtime during an ordinary rollout. It is not a multi-node-only feature.
+  `maxUnavailable: 0` + `maxSurge: 1` remains a sound singleton strategy **after** verifying capacity
+  and storage constraints. (Note Traefik deliberately uses the opposite — `maxSurge: 0`,
+  `maxUnavailable: 1` — because a `hostNetwork` surge pod cannot bind the same ports.)
+- **PodDisruptionBudgets still constrain voluntary evictions**, but do not protect against node
+  failure, kernel panic, disk failure or power loss. On one node, a singleton with `minAvailable: 1`
+  will also **block `kubectl drain` from completing** — worth knowing before a maintenance window.
+- **Anti-affinity:** `requiredDuringScheduling` with two replicas leaves the second permanently
+  Pending here; `preferredDuringScheduling` gives no benefit today but prepares manifests for the
+  planned multi-node cluster. Neither supplies availability now.
 
 ---
 
@@ -73,7 +88,7 @@ until kubelet restarted (`ActiveEnterTimestamp: Thu 2026-07-30 16:22:28 CEST`).
 **Classification:** resolved. Worth remembering as a general trap — `kubectl get node` reports what
 kubelet saw when it started, not what the host is running now.
 
-## 4. Rook Ceph — deployed, then abandoned · SAFE TO IGNORE, NOT SAFE TO RESUME
+## 4. Rook Ceph — intentionally dormant · PARKED BY DECISION, NOT ABANDONED
 
 ```
 CephCluster rook-ceph   /var/lib/rook   Ready   "Cluster created successfully"   HEALTH_WARN
@@ -101,14 +116,30 @@ PVCs by storageClass:  local-path: 15 · local-path-retain: 1 · (none): 1
 **Zero PVCs use Ceph.** All persistent storage is Rancher `local-path` — node-local, which matches the
 single-node topology.
 
-**Classification:** abandoned residue. It serves nothing and consumes no storage.
+**Classification: intentionally dormant — deliberately on ice, NOT abandoned, and NOT for removal.**
 
-> **The hazard is not leaving it; it is resuming it.** The `CephCluster` CR still exists and claims
-> success. If anything scales the operator back up, Rook will attempt to reconcile that CR against
-> `/var/lib/rook` on a node whose disks it last touched a week ago. Removal should be deliberate and
-> ordered — CR first, then workloads, then namespace — never by scaling something up "to see".
+This is a business decision, not drift. Ceph needs a real quorum to be worth running, and this is one
+node with zero paying customers. The plan is explicit:
 
-Decide explicitly: remove it, or document it as intentionally dormant. Do not leave it unclassified.
+> Phase 1 goes live and reaches **20 paying customers** → that justifies **4 more machines, 5 total**
+> → which is the minimum for a genuine multi-node cluster and a viable Rook Ceph quorum. Until then
+> the effort is not warranted.
+
+So the workloads are scaled to zero on purpose and all storage runs on Rancher `local-path`, which is
+the correct choice for a single node.
+
+**Do not restart the operator, and do not tear it down.** An earlier draft of this document said
+"removal must be CR-first" — that was wrong twice over: it should not be removed at all, and even if
+it were, that phrasing understated the danger.
+
+If teardown is ever genuinely wanted, it needs its own destructive-change plan first, covering at
+minimum: `metadata.finalizers` on the `CephCluster` (**deleting a CR whose controller is absent leaves
+it terminating indefinitely**, because finalizers require a controller to complete cleanup),
+`spec.dataDirHostPath`, `spec.cleanupPolicy` — which **can deliberately erase host paths and wipe OSD
+devices**, and must never be enabled just to clear a namespace — plus which disks were previously
+touched, Helm and CRD ownership, `/var/lib/rook` contents, and rollback evidence.
+
+**Action now: none.** Leave it dormant, revisit at the 5-machine milestone.
 
 ---
 
@@ -124,7 +155,7 @@ Decide explicitly: remove it, or document it as intentionally dormant. Do not le
 | `infra-global-observability` | Prometheus/Grafana/Loki/Tempo/Alloy | Establish provenance, then adopt |
 | `traefik` | Shared edge, chart 41.0.2 | Transfer Helm ownership |
 | `local-path-storage` | Rancher local-path provisioner | **Identify installer** — likely Kubespray; verify before claiming |
-| `rook-ceph` | Dormant Ceph | Classify: remove or document as dormant |
+| `rook-ceph` | Ceph, **intentionally dormant** | **No action** — parked until the 5-machine milestone |
 | `infra-vault` | Vaultwarden | Decide: shared platform, or its own application? |
 
 ### Kubespray / bootstrap — **do not move under Argo CD**

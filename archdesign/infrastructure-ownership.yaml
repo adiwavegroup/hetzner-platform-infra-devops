@@ -85,15 +85,18 @@ components:
 
   rook-ceph:
     currentOwner: UNKNOWN — verify provenance
-    targetOwner: undecided — remove, or document as intentionally dormant
+    targetOwner: adiwavegroup/hetzner-platform-infra-devops (at the 5-machine milestone)
     namespace: rook-ceph
     argocdManaged: false
     notes: >
-      Abandoned residue. CephCluster reports "Cluster created successfully" with HEALTH_WARN, but every
-      workload is scaled to 0/0 and no monitor, manager, OSD or operator runs. Zero PVCs use Ceph — all
-      17 use Rancher local-path. The hazard is resuming it, not leaving it: the CR still exists and
-      would reconcile against /var/lib/rook if the operator were scaled up. See health-exceptions.md §4.
-    status: classify-remove-or-dormant
+      INTENTIONALLY DORMANT — a business decision, not drift. Scaled to 0/0 on purpose; all 17 PVCs use
+      Rancher local-path, correct for one node. Ceph needs a real quorum to be worth running, so it is
+      parked until Phase 1 reaches 20 paying customers, justifying 4 more machines (5 total) and a
+      genuine multi-node cluster. DO NOT restart the operator and DO NOT tear it down. If teardown is
+      ever wanted it needs its own destructive plan — CephCluster finalizers (a CR whose controller is
+      absent terminates indefinitely), dataDirHostPath, and cleanupPolicy which can wipe host paths and
+      OSD devices. See health-exceptions.md §4.
+    status: parked-by-decision
 
   local-path-storage:
     currentOwner: UNKNOWN — likely Kubespray, verify before claiming
