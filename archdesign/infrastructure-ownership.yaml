@@ -1,0 +1,98 @@
+# Reviewed ownership metadata for shared platform components.
+#
+# WHY THIS IS HAND-MAINTAINED AND REVIEWED
+# ----------------------------------------
+# A generator can discover a controller, its workload and its namespace from the cluster. It CANNOT
+# discover which repository owns it — that fact lives only in someone's memory until written down,
+# and forgetting it is exactly how VeraCRM and Granite Security came to depend on Traefik installed
+# from an unrelated application repository without either repo showing it.
+#
+# Every field below was verified against the live cluster on the stated date, EXCEPT `currentOwner`,
+# which is a human assertion about provenance and cannot be verified from the cluster.
+
+verifiedAt: 2026-07-30
+cluster: kubernetes-admin@cluster.local
+verifiedBy: read-only kubectl discovery
+
+components:
+
+  traefik:
+    currentOwner: sample-shop/k8s/hetzner/platform/traefik-values.yaml   # ASSERTED, not cluster-verifiable
+    targetOwner: adiwavegroup/hetzner-platform-infra-devops
+    installMethod: helm                      # verified: sh.helm.release.v1.traefik in ns traefik
+    namespace: traefik                       # verified — NOT kube-system, NOT traefik-system
+    workload: DaemonSet/traefik
+    image: docker.io/traefik:v3.7.6
+    gatewayClass: traefik
+    controllerName: traefik.io/gateway-controller
+    argocdManaged: false                     # verified: no Application targets ns traefik
+    consumers: [veracrm, granite, me-funnel, default]
+    notes: >
+      hostNetwork binds the node's :80/:443 directly, so only ONE controller can exist on this
+      single-node cluster. Ownership must be transferred, never duplicated.
+      forwardedHeaders.trustedIPs is UNSET — the blocking prerequisite for Cloudflare proxying.
+    status: migration-required
+
+  cert-manager:
+    currentOwner: UNKNOWN — verify provenance   # helm release exists; installing repo not established
+    targetOwner: adiwavegroup/hetzner-platform-infra-devops
+    installMethod: helm                      # verified: sh.helm.release.v1.cert-manager
+    namespace: cert-manager
+    image: quay.io/jetstack/cert-manager-controller:v1.21.0
+    clusterIssuer: letsencrypt-prod
+    argocdManaged: false
+    consumers: [veracrm, granite, me-funnel, default]
+    notes: >
+      Issues certificates for every public host via Gateway-level annotations. Certificate resources
+      are GENERATED, owner-referenced to each Gateway, and therefore exist in no repository.
+    status: verify-provenance
+
+  registry:
+    currentOwner: manual-kubectl-apply
+    targetOwner: adiwavegroup/hetzner-platform-infra-devops
+    installMethod: raw manifests applied by hand
+    namespace: default                       # verified — the supplied YAML declares no namespace
+    workload: Deployment/registry
+    image: registry:2                        # unpinned tag; resolved digest not recorded
+    service: registry-service (NodePort 30500)
+    publicHostname: registry.adiwave.com     # verified — NOT registry.adiwave.group, which does not resolve
+    tlsTermination: Traefik (Gateway/registry-gateway, cert registry-adiwave-com-tls)
+    argocdManaged: false
+    consumers: [veracrm, me-funnel]          # verified from live image references
+    storage: PV registry-pv, hostPath /mnt/registry, 200Gi, reclaimPolicy Retain, Bound
+    notes: >
+      LIVE STATE DIVERGES FROM THE SUPPLIED YAML: the running Deployment has no
+      REGISTRY_HTTP_TLS_CERTIFICATE / REGISTRY_HTTP_TLS_KEY, so the registry serves plain HTTP behind
+      Traefik TLS termination. The `tls` volume (secret registry-tls) is still mounted but unused.
+      Reconstructing from the supplied YAML would therefore re-enable in-pod TLS and break it.
+      hostPath storage pins the workload to this node and is not backed up.
+    status: verify-live-state
+
+  argocd:
+    currentOwner: manual install — NOT helm-managed   # verified: zero helm release secrets in ns argocd
+    targetOwner: adiwavegroup/hetzner-platform-infra-devops
+    installMethod: raw manifests
+    namespace: argocd                        # keep this name; do not rename
+    argocdManaged: false                     # it does not manage itself — the bootstrap gap
+    notes: >
+      Bootstrap problem: Argo CD cannot be the only mechanism that installs Argo CD. Target is a
+      version-pinned bootstrap step, then an Application (argocd-platform) managing configuration and
+      upgrades thereafter.
+    status: verify-live-state
+
+  observability:
+    currentOwner: adiwavegroup/vera (infra/observability) + multi-source Applications
+    targetOwner: adiwavegroup/hetzner-platform-infra-devops
+    namespace: infra-global-observability
+    argocdManaged: partial
+    notes: >
+      Six observability-* Applications report no single source repo (multi-source or chart-based);
+      their provenance needs establishing before transfer.
+    status: verify-provenance
+
+# Applications that own only their own namespace-scoped routing and workloads. These are NOT
+# platform components and stay in their own repositories.
+applications:
+  veracrm:        { repo: adiwavegroup/vera,                          namespace: veracrm,   domains: [adiwave.com, adiwave.group] }
+  granite:        { repo: Granite-Security/sample-shop,               namespace: granite,   domains: [granite-security.org, sichocolate.com] }
+  me-funnel:      { repo: listellodavide/girl-dates-invitation-funnel, namespace: me-funnel, domains: [me.adiwave.group] }
