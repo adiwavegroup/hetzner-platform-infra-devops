@@ -48,8 +48,13 @@ Default: deny (incoming), allow (outgoing), allow (routed)
 10.233.0.0/18 ALLOW IN Anywhere        # k8s service+pod CIDR
 80/tcp     ALLOW IN  Anywhere
 443/tcp    ALLOW IN  Anywhere
-30500/tcp  ALLOW IN  Anywhere          # ← see security findings
+30500/tcp  ALLOW IN  Anywhere          # ← REMOVED 2026-07-31, see below
 ```
+
+> **`30500/tcp` was removed on 2026-07-31.** It exposed the registry over plaintext HTTP with
+> reusable Basic credentials. See
+> [`registry-nodeport-exposure-closure.md`](registry-nodeport-exposure-closure.md). Do not re-add it
+> when rebuilding a node — the Traefik route at `registry.adiwave.com` is the only required path.
 
 Reconstructed sequence (Calico rules came from history; the rest from live state):
 
@@ -61,7 +66,7 @@ ufw allow in  on cali+
 ufw allow out on cali+
 ufw allow 80/tcp
 ufw allow 443/tcp
-ufw allow 30500/tcp
+# ufw allow 30500/tcp   ← DO NOT re-add; removed 2026-07-31 (plaintext credential exposure)
 ufw reload
 ```
 
@@ -145,8 +150,10 @@ base64, not encrypted**, so any client or CI job configured against the NodePort
 credentials in cleartext across the public internet, and anyone on-path can read them. The 401 proves
 the path is live and accepting authentication attempts.
 
-Recommended: drop `ufw allow 30500/tcp` and make the Traefik route the only entry, or restrict the
-NodePort to the node's own network. Verify no CI job or `containerd` config uses `:30500` first.
+**RESOLVED 2026-07-31.** `ufw allow 30500/tcp` removed after proving every consumer uses
+`registry.adiwave.com`: 7 pod images, both `imagePullSecrets`, and CI all reference the TLS host, and
+no `containerd` config pinned the NodePort. Verified by forcing a real image pull. See
+[`registry-nodeport-exposure-closure.md`](registry-nodeport-exposure-closure.md).
 
 ### 4.3 Ancillary
 
