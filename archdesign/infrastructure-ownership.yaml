@@ -78,7 +78,31 @@ components:
       Bootstrap problem: Argo CD cannot be the only mechanism that installs Argo CD. Target is a
       version-pinned bootstrap step, then an Application (argocd-platform) managing configuration and
       upgrades thereafter.
-    status: verify-live-state
+      DEGRADED: the ApplicationSet CRD was never installed, so argocd-applicationset-controller has
+      crash-looped ~1600 times in 7d22h. Incomplete install, not a runtime fault. Ordinary Application
+      reconciliation is unaffected. Repair before adopting — see archdesign/health-exceptions.md §1.
+    status: degraded-repair-before-transfer
+
+  rook-ceph:
+    currentOwner: UNKNOWN — verify provenance
+    targetOwner: undecided — remove, or document as intentionally dormant
+    namespace: rook-ceph
+    argocdManaged: false
+    notes: >
+      Abandoned residue. CephCluster reports "Cluster created successfully" with HEALTH_WARN, but every
+      workload is scaled to 0/0 and no monitor, manager, OSD or operator runs. Zero PVCs use Ceph — all
+      17 use Rancher local-path. The hazard is resuming it, not leaving it: the CR still exists and
+      would reconcile against /var/lib/rook if the operator were scaled up. See health-exceptions.md §4.
+    status: classify-remove-or-dormant
+
+  local-path-storage:
+    currentOwner: UNKNOWN — likely Kubespray, verify before claiming
+    targetOwner: undecided
+    namespace: local-path-storage
+    notes: >
+      Provides both StorageClasses actually in use (local-path default, local-path-retain). Node-local
+      storage on a single-node cluster. If Kubespray-owned it stays outside this repository.
+    status: verify-provenance
 
   observability:
     currentOwner: adiwavegroup/vera (infra/observability) + multi-source Applications

@@ -221,6 +221,21 @@ persistence across a controlled pod restart.
 
 ---
 
+## 6a. Health exceptions and planned tenants
+
+Four items are classified in [`health-exceptions.md`](health-exceptions.md) and **all gate the
+ownership transfers**: the Argo CD ApplicationSet CRD is missing (~1,600 crash-loops), Granite's Kafka
+restarts on SIGTERM rather than OOM, the kernel discrepancy is resolved as stale `nodeInfo`, and Rook
+Ceph is dormant with every workload at 0/0 and no PVC using it.
+
+That file also carries the corrected topology — **one server, one node, control-plane and workloads
+colocated, no high availability** — and the namespace ownership classification.
+
+Additional tenants are planned: `tailwindating.com`, `calmapago.com`, `graelyn.com`. Three more
+tenants needing the same Gateway/HTTPRoute/certificate shape is the argument for installing the
+missing ApplicationSet CRD rather than scaling that controller to zero, and it raises the stakes on
+the single shared Traefik, the internet-reachable API server and the single-node registry volume.
+
 ## 7. Risks and unresolved decisions
 
 - **Single point of failure and single owner.** One hostNetwork Traefik owns :80/:443 for every tenant.
