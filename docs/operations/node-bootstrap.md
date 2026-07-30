@@ -43,7 +43,7 @@ Status: active
 Default: deny (incoming), allow (outgoing), allow (routed)
 
 22/tcp     ALLOW IN  Anywhere
-6443/tcp   ALLOW IN  Anywhere          # ← see security findings
+6443/tcp   ALLOW IN  Anywhere          # ← RESTRICTED 2026-07-31 to an admin /32, see below
 10.233.0.0/18 ALLOW IN 10.233.0.0/18   # k8s internal cluster traffic
 10.233.0.0/18 ALLOW IN Anywhere        # k8s service+pod CIDR
 80/tcp     ALLOW IN  Anywhere
@@ -60,7 +60,8 @@ Reconstructed sequence (Calico rules came from history; the rest from live state
 
 ```bash
 ufw allow 22/tcp
-ufw allow 6443/tcp
+# ufw allow 6443/tcp   ← DO NOT re-add globally; restricted 2026-07-31 to an admin /32
+ufw allow from <ADMIN_IP>/32 to any port 6443 proto tcp
 ufw allow from 10.233.0.0/16
 ufw allow in  on cali+
 ufw allow out on cali+
@@ -133,8 +134,11 @@ is not. It means the control plane is reachable by anyone, so its attack surface
 authentication path, every API-server CVE, and any leaked or stolen kubeconfig — including the
 `kubernetes-admin@cluster.local` context that currently sits in at least one workstation kubeconfig.
 
-Recommended: restrict :6443 to known administrative sources, or front it with a VPN/bastion. This is
-independent of the Cloudflare work and, in my assessment, higher priority than any of it.
+**RESOLVED 2026-07-31 (stage 1).** Global v4 and v6 rules removed; access restricted to a single
+administrator `/32`. Safe because node-local components reach the API over loopback — `ip route get`
+on the node's own public IP returns `dev lo`, and `ufw-before-input` accepts `lo` before any port
+rule. Stage 2 (VPN or bastion) is still outstanding; the `/32` is interim. See
+[`kubernetes-api-exposure-restriction.md`](kubernetes-api-exposure-restriction.md).
 
 ### 4.2 The registry NodePort bypasses TLS entirely
 
