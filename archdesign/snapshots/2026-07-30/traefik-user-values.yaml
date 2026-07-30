@@ -1,4 +1,13 @@
-# Traefik — AUTHORITATIVE values, extracted from the live Helm release.
+# READ-ONLY DISCOVERY SNAPSHOT.
+# NOT AN ARGO CD OR HELM DEPLOYMENT SOURCE.
+# Captured from the live release on 2026-07-30.
+#
+# This file is EVIDENCE of what is deployed, not a source of truth for deploying it. The real
+# deployment source lands under platform/ in the component's own ownership-transfer PR, after a
+# rendered-versus-live comparison, an adoption plan, a rollback procedure, a freeze of the previous
+# management mechanism, and an Argo CD ownership definition. Until then this repository owns nothing.
+#
+# Traefik — user-supplied values as deployed.
 #
 # Provenance: `helm get values traefik -n traefik` on 2026-07-30, NOT copied from any repository.
 # The node's shell history contains ZERO helm commands, so this release was installed from a
@@ -6,10 +15,10 @@
 #
 # Chart: traefik-41.0.2   ·   App: v3.7.6   ·   Namespace: traefik   ·   Release: traefik
 #
-# Reproduce exactly:
-#   helm repo add traefik https://traefik.github.io/charts
-#   helm upgrade --install traefik traefik/traefik \
-#     --version 41.0.2 --namespace traefik --create-namespace -f values.yaml
+# Reproduction command, recorded for the future transfer PR — NOT to be run from this path:
+#     helm repo add traefik https://traefik.github.io/charts
+#     helm upgrade --install traefik traefik/traefik \
+#       --version 41.0.2 --namespace traefik --create-namespace -f values.yaml
 #
 # DO NOT "improve" this file during the ownership transfer. Reproduce current behaviour first;
 # every change below is a separate, reviewable PR after adoption is stable.

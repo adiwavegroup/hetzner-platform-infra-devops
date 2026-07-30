@@ -1,0 +1,26 @@
+# READ-ONLY DISCOVERY SNAPSHOT.
+# NOT AN ARGO CD OR HELM DEPLOYMENT SOURCE.
+# Captured from the live release on 2026-07-30.
+#
+# This file is EVIDENCE of what is deployed, not a source of truth for deploying it. The real
+# deployment source lands under platform/ in the component's own ownership-transfer PR, after a
+# rendered-versus-live comparison, an adoption plan, a rollback procedure, a freeze of the previous
+# management mechanism, and an Argo CD ownership definition. Until then this repository owns nothing.
+#
+# cert-manager — user-supplied values as deployed.
+#
+# Provenance: `helm get values cert-manager -n cert-manager` on 2026-07-30.
+# Chart: cert-manager-v1.21.0  ·  App: v1.21.0  ·  Namespace: cert-manager  ·  Release: cert-manager
+#
+#     helm repo add jetstack https://charts.jetstack.io
+#     helm upgrade --install cert-manager jetstack/cert-manager \
+#       --version v1.21.0 --namespace cert-manager --create-namespace -f values.yaml
+#
+# `enableGatewayAPI: true` is load-bearing: it is what makes cert-manager watch Gateway resources and
+# generate one Certificate per HTTPS listener from a `cert-manager.io/cluster-issuer` annotation.
+# That is why no Certificate resource exists in any repository — they are generated and
+# owner-referenced to the Gateway. Turning this off would orphan every public certificate.
+config:
+  enableGatewayAPI: true
+crds:
+  enabled: true

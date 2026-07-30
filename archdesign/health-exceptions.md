@@ -26,9 +26,9 @@ overstated that as "protect nothing", which is wrong:
 - **PodDisruptionBudgets still constrain voluntary evictions**, but do not protect against node
   failure, kernel panic, disk failure or power loss. On one node, a singleton with `minAvailable: 1`
   will also **block `kubectl drain` from completing** — worth knowing before a maintenance window.
-- **Anti-affinity:** `requiredDuringScheduling` with two replicas leaves the second permanently
-  Pending here; `preferredDuringScheduling` gives no benefit today but prepares manifests for the
-  planned multi-node cluster. Neither supplies availability now.
+- **Anti-affinity:** `requiredDuringSchedulingIgnoredDuringExecution` with two replicas leaves the second
+  permanently Pending here; `preferredDuringSchedulingIgnoredDuringExecution` gives no benefit today
+  but prepares manifests for the planned multi-node cluster. Neither supplies availability now.
 
 ---
 
@@ -121,9 +121,18 @@ single-node topology.
 This is a business decision, not drift. Ceph needs a real quorum to be worth running, and this is one
 node with zero paying customers. The plan is explicit:
 
-> Phase 1 goes live and reaches **20 paying customers** → that justifies **4 more machines, 5 total**
-> → which is the minimum for a genuine multi-node cluster and a viable Rook Ceph quorum. Until then
-> the effort is not warranted.
+> Phase 1 goes live and reaches **20 paying customers** → the business plan funds **four additional
+> machines, bringing the cluster to five nodes**. Until then the effort is not warranted.
+
+**Five nodes is the chosen business and resilience target, not Ceph's technical minimum.** Rook
+documents three or more nodes as the basis for a resilient production storage platform, and Ceph
+recommends at least three monitors for production quorum — a majority of three tolerates one failure.
+Five monitors tolerate two, which is a capacity and resilience choice rather than a requirement. An
+earlier draft of this document stated five as the minimum; that was wrong, and it turned a business
+threshold into an inaccurate technical constraint.
+
+Monitor count, OSD placement, failure domains and replication policy will be designed **at that
+milestone**, not inferred now.
 
 So the workloads are scaled to zero on purpose and all storage runs on Rancher `local-path`, which is
 the correct choice for a single node.

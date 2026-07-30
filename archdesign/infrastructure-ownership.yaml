@@ -85,14 +85,15 @@ components:
 
   rook-ceph:
     currentOwner: UNKNOWN — verify provenance
-    targetOwner: adiwavegroup/hetzner-platform-infra-devops (at the 5-machine milestone)
+    targetOwner: adiwavegroup/hetzner-platform-infra-devops (at the five-node milestone)
     namespace: rook-ceph
     argocdManaged: false
     notes: >
       INTENTIONALLY DORMANT — a business decision, not drift. Scaled to 0/0 on purpose; all 17 PVCs use
       Rancher local-path, correct for one node. Ceph needs a real quorum to be worth running, so it is
-      parked until Phase 1 reaches 20 paying customers, justifying 4 more machines (5 total) and a
-      genuine multi-node cluster. DO NOT restart the operator and DO NOT tear it down. If teardown is
+      parked until Phase 1 reaches 20 paying customers, which funds 4 more machines (5 nodes). Five is
+      the chosen business/resilience target, NOT Ceph's technical minimum — Rook documents 3+ nodes for
+      resilient production and Ceph recommends 3+ monitors for quorum. DO NOT restart the operator and DO NOT tear it down. If teardown is
       ever wanted it needs its own destructive plan — CephCluster finalizers (a CR whose controller is
       absent terminates indefinitely), dataDirHostPath, and cleanupPolicy which can wipe host paths and
       OSD devices. See health-exceptions.md §4.

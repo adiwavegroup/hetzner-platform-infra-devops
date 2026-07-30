@@ -12,9 +12,12 @@ re-executed. This document begins at "Kubespray has produced a working cluster".
 Linux node1 6.12.96+deb13-amd64 SMP PREEMPT_DYNAMIC Debian 6.12.96-1 (2026-07-20) x86_64
 ```
 
-Debian 13 (Trixie). **One Hetzner dedicated server acting as both control-plane and worker**, single
-public IP `88.99.149.31`. Every "high availability" property below is therefore nominal — there is one
-node, so a `PodDisruptionBudget` or `maxSurge: 0` protects against nothing but itself.
+Debian 13 (Trixie). **One Hetzner dedicated server running one Kubernetes node that performs both
+control-plane and workload duties**, single public IP `88.99.149.31`.
+
+There is no **node-level** high availability. Rollout and voluntary-disruption controls still work —
+they simply cannot survive loss of the only node. See `archdesign/health-exceptions.md` for what
+`maxSurge`, PodDisruptionBudgets and anti-affinity do and do not buy here.
 
 ## What history could and could not reconstruct
 
@@ -28,7 +31,7 @@ node, so a `PodDisruptionBudget` or `maxSurge: 0` protects against nothing but i
 | Argo CD install | **NOT in any history** |
 
 **The Helm layer was installed from a workstation, not the node.** That is why the node's history
-cannot reproduce it, and why `platform/*/values.yaml` in this repository were extracted with
+cannot reproduce it, and why `archdesign/snapshots/2026-07-30/*.yaml` were extracted with
 `helm get values` from the live releases instead — the deployed state is the only trustworthy record.
 
 ## 1. Firewall (ufw)
@@ -62,20 +65,25 @@ ufw allow 30500/tcp
 ufw reload
 ```
 
-## 2. Platform components — reproduce from the extracted values
+## 2. Platform components — recorded for the future transfer PRs
+
+> These commands are **evidence of how to reproduce what is deployed**, not an install procedure to
+> run from this repository today. This repository owns nothing yet; each component gets its own
+> ownership-transfer PR. The values referenced below are read-only snapshots under
+> `archdesign/snapshots/2026-07-30/`.
 
 ```bash
 # Traefik — chart traefik-41.0.2, app v3.7.6
 helm repo add traefik https://traefik.github.io/charts
 helm upgrade --install traefik traefik/traefik \
   --version 41.0.2 --namespace traefik --create-namespace \
-  -f platform/traefik/values.yaml
+  -f archdesign/snapshots/2026-07-30/traefik-user-values.yaml
 
 # cert-manager — chart cert-manager-v1.21.0
 helm repo add jetstack https://charts.jetstack.io
 helm upgrade --install cert-manager jetstack/cert-manager \
   --version v1.21.0 --namespace cert-manager --create-namespace \
-  -f platform/cert-manager/values.yaml
+  -f archdesign/snapshots/2026-07-30/cert-manager-user-values.yaml
 ```
 
 Then the `letsencrypt-prod` ClusterIssuer (ACME
