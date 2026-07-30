@@ -3,8 +3,9 @@
 **Status:** discovery complete. **Nothing has been deployed, renamed, migrated or transferred.**
 **Verified:** 2026-07-30 · **Cluster:** `kubernetes-admin@cluster.local` · read-only `kubectl`
 
-This repository is the authoritative GitOps source for Kubernetes and Hetzner platform components
-shared by more than one application namespace. It owns nothing yet — §5 is the migration plan.
+This repository is the **designated future** authoritative GitOps source for Kubernetes and Hetzner
+platform components shared by more than one application namespace. **It owns no live components yet**;
+§5 defines the staged ownership-transfer plan.
 
 ---
 
@@ -15,22 +16,28 @@ the cluster, it says so.
 
 ### 1.1 The cluster is genuinely multi-tenant
 
-Twelve Argo CD Applications drawn from **four different repositories**:
+Twelve Argo CD Applications: **six sourced from three identified application repositories, plus six
+multi-source or chart-based observability Applications** that declare no single `repoURL`.
 
 | Application(s) | Source repository | Path |
 |---|---|---|
 | `veracrm`, `veracrm-platform`, `veracrm-observability`, `infra-vault` | `adiwavegroup/vera` | `infra/k8s`, `infra/platform`, `infra/observability`, `infra/vault` |
 | `granite` | `Granite-Security/sample-shop` | `k8s/hetzner/app-multi` |
 | `me-funnel` | `listellodavide/girl-dates-invitation-funnel` | `infra/k8s` |
-| six `observability-*` | *(no single source — multi-source or chart-based)* | — |
+| six `observability-*` | *(no single `repoURL` — multi-source or chart-based)* | — |
 
 Namespaces: `argocd`, `cert-manager`, `default`, `granite`, `infra-global-observability`,
 `infra-vault`, `local-path-storage`, `me-funnel`, `rook-ceph`, `traefik`, `veracrm`, plus `kube-*`.
 
-### 1.2 **No shared platform component is managed by GitOps at all**
+### 1.2 Core shared platform components are outside GitOps
 
-Verified: not one Argo CD Application targets `traefik`, `cert-manager`, `default` (registry) or
-`argocd`. Every component below is deployed by Helm-from-a-laptop or by hand.
+Verified: **Traefik, cert-manager, the private registry, and Argo CD itself are not managed by any
+Argo CD Application.** Traefik and cert-manager were installed through Helm outside GitOps, the
+registry was applied manually, and Argo CD was installed from raw manifests without self-management.
+
+Shared observability **is** already represented by Argo CD Applications, but its source ownership and
+provenance still require verification — so "outside GitOps" is a claim about these four components,
+not about the whole platform layer.
 
 | Component | Install method | Namespace | Version | ArgoCD |
 |---|---|---|---|---|
