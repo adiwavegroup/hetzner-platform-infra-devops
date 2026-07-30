@@ -32,7 +32,7 @@ overstated that as "protect nothing", which is wrong:
 
 ---
 
-## 1. Argo CD ApplicationSet controller — CrashLoopBackOff · ROOT CAUSE FOUND
+## 1. Argo CD ApplicationSet controller — **REPAIRED 2026-07-30**
 
 ```
 argocd-applicationset-controller-fb85f95b8-5kxlh   0/1  CrashLoopBackOff   1597 restarts   7d22h
@@ -52,11 +52,18 @@ resource type that does not exist, and no `ApplicationSet` objects exist that wo
 Ordinary `Application` reconciliation is unaffected, which is why nobody noticed: the twelve existing
 Applications work. But the installation is not healthy and its provenance is unknown.
 
-**Decide during the Argo CD ownership PR, not before:** install the CRD (if ApplicationSets are wanted
-— likely, given the planned tenants below), or scale the controller to zero (if they are not).
-Adopting it in its current state would import a crash loop into GitOps.
+### Repaired
 
-**Classification:** incomplete install · blocks the Argo CD ownership transfer · not urgent for uptime.
+Given the planned tenants below, the CRD was installed rather than the controller scaled to zero.
+Sourced from the **exact pinned release** matching every running component (`v3.4.5`), applied
+server-side, verified. Restart count frozen at 1615; controller 1/1 Running; **zero ApplicationSets
+created**; all 12 Applications unchanged and Healthy.
+
+Vendored at `bootstrap/argocd/v3.4.5/` with a SHA-256 checksum. Procedure, evidence and rollback:
+[`docs/operations/argocd-applicationset-crd-repair.md`](../docs/operations/argocd-applicationset-crd-repair.md).
+
+**Classification:** was an incomplete install · **repaired** · no longer blocks the Argo CD ownership
+transfer. Self-management, AppProjects and the first ApplicationSet remain separate later PRs.
 
 ## 2. Granite Kafka — 20 restarts · liveness, not OOM
 

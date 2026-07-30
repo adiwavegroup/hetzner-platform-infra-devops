@@ -78,10 +78,13 @@ components:
       Bootstrap problem: Argo CD cannot be the only mechanism that installs Argo CD. Target is a
       version-pinned bootstrap step, then an Application (argocd-platform) managing configuration and
       upgrades thereafter.
-      DEGRADED: the ApplicationSet CRD was never installed, so argocd-applicationset-controller has
-      crash-looped ~1600 times in 7d22h. Incomplete install, not a runtime fault. Ordinary Application
-      reconciliation is unaffected. Repair before adopting — see archdesign/health-exceptions.md §1.
-    status: degraded-repair-before-transfer
+      REPAIRED 2026-07-30: the ApplicationSet CRD had never been installed, crash-looping the
+      controller ~1600 times in 7d22h. Installed from the exact pinned release (v3.4.5, matching every
+      running component), applied server-side, verified — controller 1/1 Running, restart count frozen,
+      zero ApplicationSets created, all 12 Applications unchanged. Vendored at bootstrap/argocd/v3.4.5/
+      with SHA256SUMS; see docs/operations/argocd-applicationset-crd-repair.md.
+      Still outstanding: Argo CD does not manage itself (bootstrap gap).
+    status: crd-repaired-bootstrap-gap-remains
 
   rook-ceph:
     currentOwner: UNKNOWN — verify provenance
