@@ -69,11 +69,23 @@ The signal is **sync frequency**, not sync status. The historical loop produced 
 per hour per app while `status` read `Synced` almost the whole time — status sampling could not see
 it, which is why the loop went unnoticed for so long.
 
+Count **distinct sync completions**, not lines. Every sample re-prints each app's *last*
+`operationState`, so a naive `grep -c Succeeded` counts `apps × samples` and climbs forever even
+when nothing is syncing — it reads 48 after four quiet samples:
+
 ```bash
-grep -c 'Succeeded' /root/demo-monitor/argocd-state.log
+# distinct (application, finishedAt) pairs = actual sync completions
+awk -F'\t' 'NF>=4 && $4!="-" {print $1, $4}' /root/demo-monitor/argocd-state.log | sort -u | wc -l
+
+# most recent completion per application
+awk -F'\t' 'NF>=4 && $4!="-" {a[$1]=$4} END {for (k in a) printf "%-30s %s\n", k, a[k]}' \
+  /root/demo-monitor/argocd-state.log | sort
 ```
 
-More than ~2 sync operations per hour for an app **with no Git change** means the loop is back.
+A healthy baseline is exactly **one distinct completion per application** — 12 total — and it stays
+at 12 while nothing changes. Each new completion adds one.
+
+More than ~2 completions per hour for an app **with no Git change** means the loop is back.
 If it returns, capture the diff rather than inferring the cause:
 
 ```bash
