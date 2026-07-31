@@ -109,8 +109,18 @@ kubectl -n argocd patch application <app> --type=json \
   -p='[{"op":"replace","path":"/spec/syncPolicy/automated/selfHeal","value":true}]'
 ```
 
+Then fix **only the observed field** — not a field you believe is responsible.
+
 Do not claim a root cause without an observed diff. A previous attempt inferred one from apply
 counts alone and was wrong — disabling self-heal showed no diff at all for 500 seconds.
+
+**Do not restart the Argo CD controller** merely because the previous loop disappeared near a
+controller restart. Roughly 12 hours of log was rotated away around that restart, so causation
+cannot be established from it — and restarting to "fix" a recurrence would destroy the live
+evidence needed to actually diagnose it, exactly as it did the first time.
+
+Current classification, unchanged: **historically observed · currently absent · root cause
+unresolved · not caused by proven `/status` drift.**
 
 ## 2. Cluster health snapshot
 

@@ -201,13 +201,16 @@ of this migration.
 ## D. Ordering rationale
 
 ```
+0 durable access  VPN or bastion -- BEFORE any live transfer begins
 1 foundation      structure, root Application, AppProjects, validation   no live adoption
 2 observability   lowest blast radius, already GitOps -- proves the pattern
 3 registry        self-contained; public path already closed
-4 cert-manager    must precede Traefik: certificates are Gateway-referenced
-5 Traefik         LAST -- one controller, host ports, every hostname
-6 Argo CD         self-management only after tested bootstrap recovery
-7 deletion        only after each component is actively reconciled and accepted
+4 ACME decoupling issue #8 (+ #10) -- remove the tenant-owned Gateway dependency
+5 cert-manager    must follow #8: certificates are Gateway-referenced
+6 Traefik         LAST -- one controller, host ports, every hostname
+7 Argo CD         self-management only after tested bootstrap recovery
+8 deletion        only after each component is actively reconciled and accepted
+9 CoreDNS         issue #11 -- provenance first, then decide
 ```
 
 Observability first is deliberate: it is the only shared component already under Argo CD, so the

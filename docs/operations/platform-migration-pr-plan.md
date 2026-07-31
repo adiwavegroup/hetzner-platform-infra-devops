@@ -17,6 +17,29 @@ rollback rehearsed, not merely described
 
 ---
 
+## PR 0 — Durable administrative access  *(blocks every live transfer)*
+
+**No live ownership transfer may begin until this lands.**
+
+Workstation `kubectl` is currently blocked: the allowed `/32` was `195.231.47.36`, the workstation's
+IPv4 egress is now `82.192.131.24`, and its current egress is IPv6 — whose global rule was removed
+during the stage-1 API restriction. This was not theoretical; it happened **within a day** of the
+`/32` being added.
+
+SSH plus node-local `kubectl` is the working recovery path, and it is why the lockout was
+inconvenient rather than critical. But a live migration must not begin while administrative access
+depends on an address that can change without warning: the moment you most need `kubectl` is
+mid-transfer, and that is exactly when a DHCP lease change would remove it.
+
+Target: WireGuard or Tailscale, with `:6443` allowed only from the tunnel interface or subnet.
+**Verify API certificate SAN compatibility before depending on a new address** — a SAN change is a
+separate Kubespray-aligned operation, not part of a firewall PR.
+
+**Acceptance:** `kubectl` works from the workstation over the tunnel; the temporary `/32` is removed
+only *after* tunnel access is proven; SSH remains untouched as the fallback.
+
+---
+
 ## PR 1 — Foundation (no live adoption)
 
 **Adds:** `platform/` directory structure, root Application manifest (**not applied**), restricted
@@ -46,9 +69,26 @@ kube-prometheus-stack 87.19.1 · loki 7.1.0 · tempo 1.24.4
 alloy 1.11.0 · grafana 10.5.15 (veracrm) · grafana 10.5.15 (granite)
 ```
 
-**Sequence:** create platform Applications with `prune=false` and self-heal **off** → confirm they
-report `Synced` against unchanged live objects → only then remove the vera-side Applications.
-At no point may both sides reconcile the same object.
+**Transfer the existing Applications IN PLACE. Do not create duplicates.**
+
+An earlier draft of this section said to create platform Applications and then remove the vera-side
+ones. That is wrong, and wrong in the one way this whole migration is designed to prevent: between
+those two steps, two Applications reconcile the same live objects. Corrected sequence:
+
+```
+copy values into the platform repository
+→ render and compare offline
+→ freeze the Vera source
+→ update the EXISTING Applications' source references (in place)
+→ hard refresh
+→ verify Synced/Healthy
+→ verify Grafana, Prometheus, Loki, Tempo, Alloy
+→ remove the Vera files only after acceptance
+```
+
+Application **names, namespaces, chart versions, sync policies and destinations stay unchanged.**
+Only `source.repoURL` / `path` moves. At no point do two reconcilers exist, because at no point
+does a second Application exist.
 
 **Acceptance:** `grafana.adiwave.group` and `grafana.granite-security.org` both load and render
 existing dashboards; Prometheus targets unchanged; Loki and Tempo still ingest; **no pod restarts**.
@@ -71,6 +111,36 @@ garbage collection, credential rotation. Each is a separate, later decision.
 kubelet re-pulls through the TLS path. A passing `curl` only proves the endpoint answers.
 Plus: `https://registry.adiwave.com/v2/` still `401`; CI push succeeds.
 **Rollback:** re-apply exported manifests; storage was never touched.
+
+---
+
+## PR 3b — ACME solver decoupling  *(issues #8 and #10)*
+
+**Must land before cert-manager and Traefik ownership transfer.**
+
+The only ClusterIssuer on the cluster resolves ACME challenges through `granite-gateway` in
+namespace `granite`, so certificate renewal for **every** tenant depends on an object owned by one
+tenant's application repository. Transferring cert-manager or Traefik while that is true compounds
+the risk: both phases touch the same machinery.
+
+Target: a minimal **platform-owned** Gateway or dedicated ACME listener.
+
+Issue #10 (ACME contact email — currently a personal address receiving expiry warnings for every
+hostname across both organizations) may ride in this same PR, since both change the same issuer,
+**provided it does not trigger certificate recreation**.
+
+**Acceptance:**
+
+```
+platform-owned Gateway/listener accepts ACME temporary HTTPRoutes
+ClusterIssuer solver references the platform-owned Gateway
+staging issuance succeeds
+all existing Certificates stay Ready
+existing notAfter values UNCHANGED during cutover   <- proves nothing was reissued
+granite-gateway is no longer a certificate-renewal dependency
+```
+
+Renewals begin **2026-09-20**, so this has a real deadline, not just an ordering preference.
 
 ---
 
