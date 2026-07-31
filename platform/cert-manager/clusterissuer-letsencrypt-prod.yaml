@@ -1,0 +1,47 @@
+# Shared ClusterIssuer letsencrypt-prod -- CANONICAL COPY, NOT YET THE LIVE SOURCE.
+#
+# Migrated from:
+#   Granite-Security/sample-shop/k8s/hetzner/platform/cluster-issuer.yaml
+#
+# Verified against the live cluster on 2026-07-31: ClusterIssuer/letsencrypt-prod exists,
+# Ready=True, and is the ONLY ClusterIssuer on the cluster. All 17 Certificates across
+# veracrm, granite, me-funnel and default are issued by it.
+#
+# SCOPE WARNING: this file is the ISSUER only. It does NOT carry ownership of the
+# cert-manager controller installation, whose installing repository is still unknown
+# (Helm release cert-manager, revision 1, chart cert-manager-v1.21.0). Moving this manifest
+# does not migrate cert-manager. Those are two separate transfers.
+#
+# CROSS-TENANT COUPLING, verified live and left UNCHANGED here: the http01 solver resolves
+# ACME challenges through `granite-gateway` in namespace `granite` -- a Granite-owned
+# object. Every tenant's certificate renewal therefore depends on a Gateway owned by one
+# tenant. Renewals begin 2026-09-20. Do not rename or delete granite-gateway without
+# re-pointing this solver first. Reviewing that coupling is deliberately NOT part of this
+# import: copying exactly is the point, and changing the solver is a behavioural change.
+#
+# THIS FILE DOES NOT CONTROL LIVE STATE and is not applied by anything.
+#
+# One-time cluster-scoped resource. Apply after cert-manager is installed with
+# --set config.enableGatewayAPI=true (required for the gatewayHTTPRoute solver below —
+# see cloudify.md §4 for the full install command):
+#   kubectl apply -f hetzner/platform/cluster-issuer.yaml
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: mr.vrabie@gmail.com # change if you want renewal/expiry notices elsewhere
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      - http01:
+          # Gateway API equivalent of the old `ingress: {ingressClassName: nginx}`
+          # solver — creates a temporary HTTPRoute attached to the Gateway's :80
+          # listener (see app/gateway.yaml) to answer the ACME HTTP-01 challenge.
+          gatewayHTTPRoute:
+            parentRefs:
+              - name: granite-gateway
+                namespace: granite
+                kind: Gateway
