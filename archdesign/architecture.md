@@ -108,6 +108,12 @@ namespace stays `argocd`.
 
 ## 2. Ownership rule
 
+> Repository governance — canonical vs co-governed, which changes need both organizations, and what
+> counts as proof — is in [`governance.md`](governance.md). A second organizational copy of this
+> repository exists at `Granite-Security/hetzner-platform-infra-devops`; it is **co-governed, not a
+> second reconciliation source**.
+
+
 > **Infrastructure used by more than one application namespace belongs to this repository.**
 > Applications own their workloads, namespace-scoped routing, hostnames and event contracts.
 
