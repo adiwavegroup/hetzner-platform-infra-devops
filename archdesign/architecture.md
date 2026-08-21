@@ -253,7 +253,10 @@ the single shared Traefik, the internet-reachable API server and the single-node
 
 - **Single point of failure and single owner.** One hostNetwork Traefik owns :80/:443 for every tenant.
 - **`forwardedHeaders.trustedIPs` unset** — blocks Cloudflare proxying for every tenant, fixable only
-  in the platform repo.
+  in the platform repo. PR 5 forbids changing it, so until 2026-08-21 the fix had no PR at all;
+  it is now `PR 5b` in `docs/operations/platform-migration-pr-plan.md`. Note this is not merely
+  blocking: orange-clouding a record before 5b lands is a cross-tenant incident reachable from a
+  dashboard toggle, with no repository change required to trigger it.
 - **Registry `hostPath` storage** — node-pinned, unreplicated, no verified backup, deletion enabled
   with no GC history.
 - **Registry image tag unpinned** (`registry:2`); resolved digest not recorded.

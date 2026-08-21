@@ -190,6 +190,103 @@ merging, not after something breaks.
 
 ---
 
+## PR 5b — Forwarded-header trust  *(the Cloudflare prerequisite; after PR 5, never inside it)*
+
+`forwardedHeaders.trustedIPs` is unset on every entryPoint. `archdesign/architecture.md` §7 records
+this as a risk for every tenant and PR 5 **forbids** changing it — correctly, because ownership
+transfer must not change behaviour. The consequence is that the fix currently has no PR at all.
+This is that PR.
+
+**Why it is separate rather than folded into PR 5.** PR 5 is reversible by Helm rollback to a
+recorded revision and changes nothing observable. This changes how every request's client address
+is derived, for every tenant at once. Two changes with different blast radii and different rollback
+stories must not share a revert.
+
+### Standing hazard until this lands
+
+Orange-clouding **any** record in Cloudflare today is a cross-tenant incident, available from a
+dashboard toggle in seconds and requiring no repository change:
+
+| Affected | Effect |
+| --- | --- |
+| any per-IP rate limiting or throttle | the TCP peer becomes a Cloudflare edge address, so every visitor arriving through one PoP shares one bucket |
+| audit trails recording a client address | records edge addresses — a GDPR trail that identifies no caller |
+| `veracrm` edge DDoS guard (`edge-in-flight`, amount 30) | a concurrency cap across an entire PoP: an immediate outage of the hostname it protects |
+
+The `veracrm` guard is safe as shipped precisely because traffic reaches the origin directly and
+`sourceCriterion` is left at Traefik's default. It becomes an outage the moment proxying is enabled
+without this PR. See `adiwavegroup/vera` → `docs/ops/edge-ddos-guard.md`.
+
+### The change
+
+```yaml
+ports:
+  web:
+    forwardedHeaders:
+      trustedIPs: [<reviewed Cloudflare ranges>]
+  websecure:
+    forwardedHeaders:
+      trustedIPs: [<reviewed Cloudflare ranges>]
+```
+
+**Never `0.0.0.0/0` or `::/0`.** A wildcard lets any client forge `X-Forwarded-For`, which both
+defeats every per-IP control on the cluster and forges the audit trail — strictly worse than the
+present state, where a forged header cannot survive the edge.
+
+Both IPv4 **and** IPv6 ranges. An IPv4-only list silently falls back to the peer address for every
+IPv6 visitor, producing a control that works in testing and not in production.
+
+### Ranges are reviewed content, never fetched at apply time
+
+A remote list that can silently change a production trust boundary is itself the risk. Required
+sequence, with the ranges committed in the PR so the diff shows exactly what was trusted:
+
+```bash
+curl -s https://www.cloudflare.com/ips-v4 -o cf-v4.txt
+curl -s https://www.cloudflare.com/ips-v6 -o cf-v6.txt
+grep -cE '^[0-9]+\.'  cf-v4.txt            # sanity: non-empty, CIDR-shaped
+grep -cE '^[0-9a-fA-F]*:' cf-v6.txt         # sanity: IPv6 present at all
+grep -qE '^(0\.0\.0\.0/0|::/0)$' cf-v4.txt cf-v6.txt && { echo REFUSE; exit 1; }
+```
+
+Fetch them **in** this PR, not in advance: a list frozen weeks earlier goes stale silently, and a
+stale trust boundary fails in the direction of refusing legitimate edge addresses.
+
+### Acceptance — every tenant, no exceptions
+
+Per `archdesign/governance.md`, a shared change is not proven because the tenant who prompted it
+still works. This one cannot be proven by inspection at all: the observable effect is *which
+address the proxy attributes a request to*, so each check must read a client address back, not
+merely load a page.
+
+```
+veracrm     login still throttles per credential, not per PoP; pii_access_audit.request_ip
+            records a caller address; a CRM tab holds its SSE stream open through the guard
+granite     granite-security.org · sichocolate.com · media/s3/garage.granite-security.org
+me-funnel   me.adiwave.group
+registry    registry.adiwave.com still 401s
+webhooks    Stripe endpoint reachable; unsigned payload rejected 400
+redirects   every http:// -> 301 https://, deep paths preserved
+listeners   routing validator PASS, all namespaces
+```
+
+Prove it on **one** hostname first — orange-cloud a single low-value record, verify the client-IP
+chain end to end, and only then proceed host by host. `docs/ops/cloudflare-proxy-migration.md` §6 in
+the vera repository holds that rollout order.
+
+**Acceptance:** the above, plus a request from a known address observed to be attributed to that
+address and not to a Cloudflare PoP.
+**Rollback:** Helm rollback to the recorded revision, then un-orange-cloud the record. Rehearse the
+un-orange-cloud, not only the Helm half — the DNS change is the one that restores service.
+
+### Linked impact PR
+
+`adiwavegroup/vera`: no manifest change, but `docs/ops/edge-ddos-guard.md` and
+`docs/ops/cloudflare-proxy-migration.md` §3 both name this as their blocking prerequisite and must
+record that it landed.
+
+---
+
 ## PR 6 — Argo CD
 
 Pinned bootstrap at **v3.4.5**, namespace `argocd`, plus the vendored ApplicationSet CRD already at
