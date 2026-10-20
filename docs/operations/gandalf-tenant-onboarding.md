@@ -10,11 +10,11 @@ GANDALF is a Rust modular monolith (tonic gRPC API), a React static bundle, an E
 | Item | State |
 |---|---|
 | `platform/tenants/gandalf/namespace.yaml` | written, reviewed in this PR, **not applied** |
-| Live namespace `gandalf` | **not created.** On 2026-10-20 `kubectl --context kubernetes-admin@cluster.local get ns` timed out against `88.99.149.31:6443`; the API is restricted to an administrator `/32` (see PR 0 in the [migration plan](platform-migration-pr-plan.md)). No firewall change and no node login was attempted. |
+| Live namespace `gandalf` | **not created.** On 2026-10-20 `kubectl --context kubernetes-admin@cluster.local get ns` timed out against `88.99.149.31:6443`; the API is restricted to an administrator `/32` (see PR 0 in the [migration plan](platform-migration-pr-plan.md)). A login attempt through the owner's SSH alias for the node (`vera1`) was refused with `Permission denied (publickey)` because no key was loaded in the agent; no other user or key was tried and no firewall change was made. |
 | Argo CD Application for GANDALF | not written, not applied |
 | Registry namespace, credentials, DNS record, certificate | not touched |
 
-The repository owner authorized creating the `gandalf` namespace on 2026-10-20. Creation is blocked only by administrative access.
+The repository owner authorized creating the `gandalf` namespace on 2026-10-20 and chose node-local `kubectl` over SSH as the way to do it. Creation is blocked only by administrative access: the SSH key must be loaded (`ssh-add`) or the API allowlist updated.
 
 ## Which side owns what
 Per the governance rules, namespace-scoped resources stay with the application team; shared components need consultation of both organizations.
@@ -26,13 +26,13 @@ Per the governance rules, namespace-scoped resources stay with the application t
 | `Gateway` and `HTTPRoute` for `gandalf.axiomsynergy.ai` | GANDALF repository | no new controller. They attach to the existing `GatewayClass` `traefik`, as the other tenants do |
 | TLS certificate | cert-manager via the existing `letsencrypt-prod` ClusterIssuer, requested by Gateway annotation as the other tenants do | no change to the issuer. One more `Certificate` is generated |
 | Traefik (`hostNetwork`, `:80`/`:443`) | shared | no change proposed. **Acceptance for this onboarding includes every existing tenant** |
-| Image registry `registry.adiwave.com` | shared | **decision needed** (below): a `gandalf/` repository namespace and a credential, plus capacity on a 200Gi `hostPath` volume that is not backed up |
+| Image registry | shared | **decided by the owner on 2026-10-20: a new registry `registry.axiomsynergy.com` with a `gandalf/` repository namespace**, not the existing `registry.adiwave.com`. It is a new shared component: Deployment with a pinned image, storage with a stated capacity and backup owner (the existing registry uses an unbacked-up 200Gi `hostPath` volume), `Gateway` and certificate through `letsencrypt-prod`, DNS record, push and pull credentials, no NodePort. Separate PR in this repository, not part of this one |
 | Argo CD | shared | **decision needed**: how a new tenant Application is registered. `AppProject`s do not exist yet (migration plan PR 1); existing tenant Applications use `project: default` |
 | DNS for `axiomsynergy.ai` | GANDALF owner | outside this repository. Not verified whether the record exists |
 | Firewall, `:6443`, NodePorts | shared | none requested. GANDALF needs no new public port |
 
 ## Decisions needed before anything beyond the namespace
-1. **Registry:** use `registry.adiwave.com` with a separate `gandalf/` namespace and credential, or another registry. Shared-registry use is a shared-platform decision.
+1. **Registry:** decided (new `registry.axiomsynergy.com`, see above). Still to confirm: the domain is `.com` while the product host is `gandalf.axiomsynergy.ai`, and who owns the DNS for it.
 2. **Argo CD registration:** one `Application` (`gandalf`) in namespace `argocd`, applied by hand once, reading the GANDALF repository with a read-only deploy key generated on the node and never leaving it, as VERA and me-funnel do. Confirm that `project: default` is acceptable until `AppProject`s exist.
 3. **Resource budget** for GANDALF on the shared node (no CPU or memory numbers are invented here). A `ResourceQuota` and `LimitRange` follow once agreed.
 4. **PostgreSQL:** in-cluster (which storage class; the cluster has `local-path-storage` and `rook-ceph` namespaces) or external; backup owner; migration identity separate from the application role.
