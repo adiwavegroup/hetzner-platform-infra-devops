@@ -4,13 +4,13 @@
 **Owner repository for the workload:** `axiomsynergy/gandalf` (design: its ADR 011, `docs/adr/011-cd-gitops.md`)
 **Public host:** `https://gandalf.axiomsynergy.ai/` · **Namespace:** `gandalf`
 
-GANDALF is a Rust modular monolith (tonic gRPC API), a React static bundle, an Envoy gRPC-Web gateway and PostgreSQL with forced row-level security. It is a new tenant on the shared single-node cluster described in [`archdesign/architecture.md`](../../archdesign/architecture.md). This document records what that needs from the shared platform and what stays with the application team, following [`archdesign/governance.md`](../../archdesign/governance.md).
+GANDALF is, per its owner's design in the private repository `axiomsynergy/gandalf` (`docs/architecture.md` and `docs/adr/011-cd-gitops.md` on its `main`; this repository cannot corroborate it), a Rust modular monolith (tonic gRPC API), a React static bundle, an Envoy gRPC-Web gateway and PostgreSQL with forced row-level security. Treat that stack as owner-supplied requirements, not as facts verified here. It is a new tenant on the shared single-node cluster described in [`archdesign/architecture.md`](../../archdesign/architecture.md). This document records what that needs from the shared platform and what stays with the application team, following [`archdesign/governance.md`](../../archdesign/governance.md).
 
 ## What was done, and what was not
 | Item | State |
 |---|---|
 | `platform/tenants/gandalf/namespace.yaml` | written, reviewed in this PR, **not applied** |
-| Live namespace `gandalf` | **not created.** On 2026-10-20 `kubectl --context kubernetes-admin@cluster.local get ns` timed out against `88.99.149.31:6443`; the API is restricted to an administrator `/32` (see PR 0 in the [migration plan](platform-migration-pr-plan.md)). A login attempt through the owner's SSH alias for the node (`vera1`) was refused with `Permission denied (publickey)` because no key was loaded in the agent; no other user or key was tried and no firewall change was made. |
+| Live namespace `gandalf` | **not created by this change; live existence not verified.** On 2026-10-20 `kubectl --context kubernetes-admin@cluster.local get ns` timed out against `88.99.149.31:6443`; the API is restricted to an administrator `/32` (see PR 0 in the [migration plan](platform-migration-pr-plan.md)). A login attempt through the owner's SSH alias for the node (`vera1`) was refused with `Permission denied (publickey)` because no key was loaded in the agent; no other user or key was tried and no firewall change was made. |
 | Argo CD Application for GANDALF | not written, not applied |
 | Registry namespace, credentials, DNS record, certificate | not touched |
 
@@ -26,17 +26,17 @@ Per the governance rules, namespace-scoped resources stay with the application t
 | `Gateway` and `HTTPRoute` for `gandalf.axiomsynergy.ai` | GANDALF repository | no new controller. They attach to the existing `GatewayClass` `traefik`, as the other tenants do |
 | TLS certificate | cert-manager via the existing `letsencrypt-prod` ClusterIssuer, requested by Gateway annotation as the other tenants do | no change to the issuer. One more `Certificate` is generated |
 | Traefik (`hostNetwork`, `:80`/`:443`) | shared | no change proposed. **Acceptance for this onboarding includes every existing tenant** |
-| Image registry | shared | **decided by the owner on 2026-10-20: a new registry `registry.axiomsynergy.com` with a `gandalf/` repository namespace**, not the existing `registry.adiwave.com`. It is a new shared component: Deployment with a pinned image, storage with a stated capacity and backup owner (the existing registry uses an unbacked-up 200Gi `hostPath` volume), `Gateway` and certificate through `letsencrypt-prod`, DNS record, push and pull credentials, no NodePort. Separate PR in this repository, not part of this one |
-| Argo CD | shared | **decision needed**: how a new tenant Application is registered. `AppProject`s do not exist yet (migration plan PR 1); existing tenant Applications use `project: default` |
+| Image registry | shared | **requested by the GANDALF owner on 2026-10-20, pending joint review under `archdesign/governance.md`: a new registry `registry.axiomsynergy.com` with a `gandalf/` repository namespace**, not the existing `registry.adiwave.com`. It is a new shared component: Deployment with a pinned image, storage with a stated capacity and backup owner (the existing registry uses an unbacked-up 200Gi `hostPath` volume), `Gateway` and certificate through `letsencrypt-prod`, DNS record, push and pull credentials, no NodePort. Separate PR in this repository, not part of this one |
+| Argo CD | shared | **decision needed**: how a new tenant Application is registered. the migration plan proposes restricted `AppProject`s (PR 1); whether any exist today, and which project the existing tenant Applications use, is **not verified here** and needs a read-only inventory |
 | DNS for `axiomsynergy.ai` | GANDALF owner | outside this repository. Not verified whether the record exists |
 | Firewall, `:6443`, NodePorts | shared | none requested. GANDALF needs no new public port |
 
 ## Decisions needed before anything beyond the namespace
-1. **Registry:** decided (new `registry.axiomsynergy.com`, see above). Still to confirm: the domain is `.com` while the product host is `gandalf.axiomsynergy.ai`, and who owns the DNS for it.
-2. **Argo CD registration:** one `Application` (`gandalf`) in namespace `argocd`, applied by hand once, reading the GANDALF repository with a read-only deploy key generated on the node and never leaving it, as VERA and me-funnel do. Confirm that `project: default` is acceptable until `AppProject`s exist.
+1. **Registry:** requested by the GANDALF owner (new `registry.axiomsynergy.com`, see above); it needs the joint review before provisioning. Still to confirm: the domain is `.com` while the product host is `gandalf.axiomsynergy.ai`, and who owns the DNS for it.
+2. **Argo CD registration:** one `Application` (`gandalf`) in namespace `argocd`, applied by hand once, reading the GANDALF repository with a read-only deploy key. Proposal only: VERA's own `infra/argocd/application.yaml` (repository `adiwavegroup/vera`) states that its key was generated on the server and never left it; this repository does not document key generation, custody or permissions for any tenant, so the approach needs review. Confirm which `AppProject` applies once the inventory exists.
 3. **Resource budget** for GANDALF on the shared node (no CPU or memory numbers are invented here). A `ResourceQuota` and `LimitRange` follow once agreed.
 4. **PostgreSQL:** in-cluster (which storage class; the cluster has `local-path-storage` and `rook-ceph` namespaces) or external; backup owner; migration identity separate from the application role.
-5. **Secrets:** reuse the OpenBao setup (`infra-vault`) or hand-applied Secrets for the first environment.
+5. **Secrets:** `infra-vault` is Vaultwarden, a human password manager (`archdesign/health-exceptions.md`), not a workload secret store. OpenBao is part of VERA's tenant platform, "consumed only by veracrm" (`archdesign/migration-inventory.md`); reusing it would add a cross-tenant dependency and needs consultation first. For the first environment the simpler option is hand-applied Secrets in the `gandalf` namespace; decide with the platform owners.
 6. **Network policy enforcement:** record whether the CNI enforces NetworkPolicy. It was listed as unverified in the original brief and is not established in this repository.
 
 ## Procedure when access is restored (not executed)
@@ -56,4 +56,4 @@ no change to Traefik, cert-manager, registry or Argo CD objects
 Later GANDALF changes (Gateway, certificate, Application, registry credential) are separate PRs with their own evidence that covers every tenant attached to the shared `GatewayClass`.
 
 ## Not verified
-Everything cluster-side: the namespace does not exist yet, pod security admission support and the CNI's NetworkPolicy enforcement are unconfirmed, DNS and registry capacity are unconfirmed, and Argo CD tenant registration has no precedent for a third organization beyond the `me-funnel` Application, which reads a personal repository.
+Everything cluster-side: whether the namespace exists is unverified (this change does not create it), pod security admission support and the CNI's NetworkPolicy enforcement are unconfirmed, DNS and registry capacity are unconfirmed, and how a tenant Application is registered is undocumented here beyond the repositories named in `archdesign/architecture.md` §1.1 (the `me-funnel` Application reads a personal repository).
