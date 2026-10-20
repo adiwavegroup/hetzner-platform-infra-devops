@@ -33,7 +33,7 @@ Per the governance rules, namespace-scoped resources stay with the application t
 
 ## Decisions needed before anything beyond the namespace
 1. **Registry:** requested by the GANDALF owner (new `registry.axiomsynergy.com`, see above); it needs the joint review before provisioning. Still to confirm: the domain is `.com` while the product host is `gandalf.axiomsynergy.ai`, and who owns the DNS for it.
-2. **Argo CD registration:** one `Application` (`gandalf`) in namespace `argocd`, applied by hand once, reading the GANDALF repository with a read-only deploy key. Proposal only: VERA's own `infra/argocd/application.yaml` (repository `adiwavegroup/vera`) states that its key was generated on the server and never left it; this repository does not document key generation, custody or permissions for any tenant, so the approach needs review. Confirm which `AppProject` applies once the inventory exists.
+2. **Argo CD registration:** one `Application` (`gandalf`) in namespace `argocd`, applied by hand once, reading the GANDALF repository with a read-only deploy key. Proposal only. For orientation, an unverified external report: a comment in `adiwavegroup/vera` at commit `3d74c7693f829a5cd871f6a97432f00c99abed57`, file `infra/argocd/application.yaml`, says its read-only key is generated on the server and stays there. This repository does not document key generation, custody or permissions for any tenant, and that claim was not checked against the cluster, so the approach needs review. Confirm which `AppProject` applies once the inventory exists.
 3. **Resource budget** for GANDALF on the shared node (no CPU or memory numbers are invented here). A `ResourceQuota` and `LimitRange` follow once agreed.
 4. **PostgreSQL:** in-cluster (which storage class; the cluster has `local-path-storage` and `rook-ceph` namespaces) or external; backup owner; migration identity separate from the application role.
 5. **Secrets:** `infra-vault` is Vaultwarden, a human password manager (`archdesign/health-exceptions.md`), not a workload secret store. OpenBao is part of VERA's tenant platform, "consumed only by veracrm" (`archdesign/migration-inventory.md`); reusing it would add a cross-tenant dependency and needs consultation first. For the first environment the simpler option is hand-applied Secrets in the `gandalf` namespace; decide with the platform owners.
@@ -41,11 +41,12 @@ Per the governance rules, namespace-scoped resources stay with the application t
 
 ## Procedure when access is restored (not executed)
 1. Confirm `kubectl --context kubernetes-admin@cluster.local get applications -n argocd` returns the expected 12 Applications, and record the state of every existing tenant (`veracrm`, `granite`, `me-funnel`): Applications Synced and Healthy, public hosts answering.
-2. `kubectl apply -f platform/tenants/gandalf/namespace.yaml` (server-side validation first with `--dry-run=server`).
-3. Re-check step 1 unchanged, and `kubectl get ns gandalf --show-labels`.
-4. Record the commands and outputs in this file under a dated heading.
+2. Check that the namespace does not already exist: `kubectl get ns gandalf` must answer `NotFound`. If it exists, **stop**: record its labels, annotations, creation time and contents, and consult the owners before any adoption. Do not apply over it.
+3. `kubectl apply -f platform/tenants/gandalf/namespace.yaml --dry-run=server`, then without `--dry-run`. Keep the output: it must say `created`, and `kubectl get ns gandalf -o jsonpath='{.metadata.creationTimestamp}'` is recorded as the proof that this procedure created it.
+4. Re-check step 1 unchanged, and `kubectl get ns gandalf --show-labels`.
+5. Record the commands and outputs in this file under a dated heading.
 
-**Rollback:** `kubectl delete namespace gandalf` while it is empty. Do not delete it after workloads exist without the application owner.
+**Rollback:** only for a namespace this procedure created (step 3 recorded `created`): `kubectl delete namespace gandalf` while it is empty. Never delete a namespace that existed beforehand, and do not delete it after workloads exist without the application owner.
 
 ## Acceptance for the namespace PR
 ```
