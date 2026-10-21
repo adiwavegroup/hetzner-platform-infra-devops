@@ -1,6 +1,6 @@
 # GANDALF tenant onboarding
 
-**Status:** proposal plus one manifest, nothing applied · **Date:** 2026-10-20
+**Status:** namespace applied on 2026-10-21 (empty), everything else still a proposal · **Date:** 2026-10-20
 **Owner repository for the workload:** `axiomsynergy/gandalf` (design: its ADR 011, `docs/adr/011-cd-gitops.md`)
 **Public host:** `https://gandalf.axiomsynergy.ai/` · **Namespace:** `gandalf`
 
@@ -10,7 +10,7 @@ GANDALF is, per its owner's design in the private repository `axiomsynergy/ganda
 | Item | State |
 |---|---|
 | `platform/tenants/gandalf/namespace.yaml` | written, reviewed in this PR, **not applied** |
-| Live namespace `gandalf` | **not created by this change; live existence not verified.** On 2026-10-20 `kubectl --context kubernetes-admin@cluster.local get ns` timed out against `88.99.149.31:6443`; the API is restricted to an administrator `/32` (see PR 0 in the [migration plan](platform-migration-pr-plan.md)). A login attempt through the owner's SSH alias for the node (`vera1`) was refused with `Permission denied (publickey)` because no key was loaded in the agent; no other user or key was tried and no firewall change was made. |
+| Live namespace `gandalf` | **created on 2026-10-21, see the execution record at the end.** History of the first attempt: **not created by this change; live existence not verified.** On 2026-10-20 `kubectl --context kubernetes-admin@cluster.local get ns` timed out against `88.99.149.31:6443`; the API is restricted to an administrator `/32` (see PR 0 in the [migration plan](platform-migration-pr-plan.md)). A login attempt through the owner's SSH alias for the node (`vera1`) was refused with `Permission denied (publickey)` because no key was loaded in the agent; no other user or key was tried and no firewall change was made. |
 | Argo CD Application for GANDALF | not written, not applied |
 | Registry namespace, credentials, DNS record, certificate | not touched |
 
@@ -26,13 +26,13 @@ Per the governance rules, namespace-scoped resources stay with the application t
 | `Gateway` and `HTTPRoute` for `gandalf.axiomsynergy.ai` | GANDALF repository | no new controller. They attach to the existing `GatewayClass` `traefik`, as the other tenants do |
 | TLS certificate | cert-manager via the existing `letsencrypt-prod` ClusterIssuer, requested by Gateway annotation as the other tenants do | no change to the issuer. One more `Certificate` is generated |
 | Traefik (`hostNetwork`, `:80`/`:443`) | shared | no change proposed. **Acceptance for this onboarding includes every existing tenant** |
-| Image registry | shared | **requested by the GANDALF owner on 2026-10-20, pending joint review under `archdesign/governance.md`: a new registry `registry.axiomsynergy.com` with a `gandalf/` repository namespace**, not the existing `registry.adiwave.com`. It is a new shared component: Deployment with a pinned image, storage with a stated capacity and backup owner (the existing registry uses an unbacked-up 200Gi `hostPath` volume), `Gateway` and certificate through `letsencrypt-prod`, DNS record, push and pull credentials, no NodePort. Separate PR in this repository, not part of this one |
+| Image registry | shared | **requested by the GANDALF owner on 2026-10-20, pending joint review under `archdesign/governance.md`: a new registry `registry.axiomsynergy.ai` with a `gandalf/` repository namespace**, not the existing `registry.adiwave.com`. It is a new shared component: Deployment with a pinned image, storage with a stated capacity and backup owner (the existing registry uses an unbacked-up 200Gi `hostPath` volume), `Gateway` and certificate through `letsencrypt-prod`, DNS record, push and pull credentials, no NodePort. Separate PR in this repository, not part of this one |
 | Argo CD | shared | **decision needed**: how a new tenant Application is registered. the migration plan proposes restricted `AppProject`s (PR 1); whether any exist today, and which project the existing tenant Applications use, is **not verified here** and needs a read-only inventory |
 | DNS for `axiomsynergy.ai` | GANDALF owner | outside this repository. Not verified whether the record exists |
 | Firewall, `:6443`, NodePorts | shared | none requested. GANDALF needs no new public port |
 
 ## Decisions needed before anything beyond the namespace
-1. **Registry:** requested by the GANDALF owner (new `registry.axiomsynergy.com`, see above); it needs the joint review before provisioning. Still to confirm: the domain is `.com` while the product host is `gandalf.axiomsynergy.ai`, and who owns the DNS for it.
+1. **Registry:** requested by the GANDALF owner (new `registry.axiomsynergy.ai`, see above); it needs the joint review before provisioning. The DNS record exists as of 2026-10-21 (see the execution record).
 2. **Argo CD registration:** one `Application` (`gandalf`) in namespace `argocd`, applied by hand once, reading the GANDALF repository with a read-only deploy key. Proposal only. For orientation, an unverified external report: a comment in `adiwavegroup/vera` at commit `3d74c7693f829a5cd871f6a97432f00c99abed57`, file `infra/argocd/application.yaml`, says its read-only key is generated on the server and stays there. This repository does not document key generation, custody or permissions for any tenant, and that claim was not checked against the cluster, so the approach needs review. Confirm which `AppProject` applies once the inventory exists.
 3. **Resource budget** for GANDALF on the shared node (no CPU or memory numbers are invented here). A `ResourceQuota` and `LimitRange` follow once agreed.
 4. **PostgreSQL:** in-cluster (which storage class; the cluster has `local-path-storage` and `rook-ceph` namespaces) or external; backup owner; migration identity separate from the application role.
@@ -58,3 +58,15 @@ Later GANDALF changes (Gateway, certificate, Application, registry credential) a
 
 ## Not verified
 Everything cluster-side: whether the namespace exists is unverified (this change does not create it), pod security admission support and the CNI's NetworkPolicy enforcement are unconfirmed, DNS and registry capacity are unconfirmed, and how a tenant Application is registered is undocumented here beyond the repositories named in `archdesign/architecture.md` §1.1 (the `me-funnel` Application reads a personal repository).
+
+## Execution record, 2026-10-21
+Executed by the repository owner (the command was typed by the owner in the Claude Code session, after the classifier blocked an agent-run apply) over SSH to the node `hetzner-adiwave-vera1` (certificate login as `root`), using the node-local `kubectl`.
+
+1. Before: `kubectl get ns` listed 16 namespaces (`argocd`, `cert-manager`, `ctrlgrc-apps-dev`, `ctrlgrc-mesh-dev`, `default`, `granite`, `infra-global-observability`, `infra-vault`, `kube-node-lease`, `kube-public`, `kube-system`, `local-path-storage`, `me-funnel`, `rook-ceph`, `traefik`, `veracrm`). `kubectl get ns gandalf` answered `NotFound`.
+2. `git show gandalf-devops:platform/tenants/gandalf/namespace.yaml | ssh root@100.116.242.84 'kubectl apply --dry-run=server -f -'` printed `namespace/gandalf created (server dry run)`.
+3. The same pipe without `--dry-run` printed `namespace/gandalf created`. `kubectl get ns gandalf --show-labels` then showed `Active`, labels `app.kubernetes.io/part-of=gandalf`, `kubernetes.io/metadata.name=gandalf`, `pod-security.kubernetes.io/audit=restricted`, `pod-security.kubernetes.io/warn=restricted`. `creationTimestamp` is `2026-10-21T16:07:55Z`. `kubectl get all -n gandalf` reports no resources.
+4. Applications afterwards, from `kubectl get applications -n argocd`: 15 exist (not the 12 this procedure expected). Synced/Healthy: `ctrlgrc-mesh-dev`, `granite`, `me-funnel`, `veracrm-openbao-injector`, `veracrm-platform`. `veracrm` is OutOfSync/Healthy. `ctrlgrc-apps-dev` is Synced/Degraded. Ten others report sync `Unknown`, health Healthy.
+
+**Not established:** a snapshot before the change was not taken (step 1 of the procedure was skipped for Applications), so these states are what exists after the change, not proof that nothing moved. The `veracrm` OutOfSync and `ctrlgrc-apps-dev` Degraded states cannot be attributed to this change from this evidence; an empty namespace touches no other object, but that was not tested. The public hosts of the other tenants were not probed. `https://gandalf.axiomsynergy.ai/` has no certificate or route yet (a TLS verification failure is expected until a Gateway and Certificate exist).
+
+DNS update from the GANDALF owner, 2026-10-21 (Cloudflare, DNS only): `gandalf.axiomsynergy.ai` and `registry.axiomsynergy.ai`, both A `88.99.149.31`. The registry host is **`registry.axiomsynergy.ai`**; the `.com` name used earlier in this document was wrong, the owner has no `.com` domain.
