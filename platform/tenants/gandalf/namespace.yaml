@@ -1,0 +1,23 @@
+# Tenant namespace for GANDALF (Axiom Synergy). NOT APPLIED.
+#
+# Status: reviewed manifest only. The cluster API was unreachable from the author's workstation on
+# 2026-10-20 (:6443 is restricted to an administrator /32, see
+# docs/operations/kubernetes-api-exposure-restriction.md), so nothing was created. Apply per
+# docs/operations/gandalf-tenant-onboarding.md, then record the outcome there.
+#
+# An empty namespace changes no running workload. Everything inside it (workloads, Services,
+# Gateway/HTTPRoute, NetworkPolicies, config) is namespace-scoped and owned by the GANDALF repository
+# (axiomsynergy/gandalf), not by this one.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gandalf
+  labels:
+    app.kubernetes.io/part-of: gandalf
+    # Warn and audit on the restricted profile first; enforce once the workloads are known to comply.
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+  annotations:
+    # Ownership of what lives INSIDE the namespace. The namespace object itself is recorded here.
+    gandalf.axiomsynergy.ai/owner-repository: https://github.com/axiomsynergy/gandalf
+    gandalf.axiomsynergy.ai/design: ADR 011 in the owner repository (docs/adr/011-cd-gitops.md)

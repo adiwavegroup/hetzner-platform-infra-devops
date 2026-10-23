@@ -60,7 +60,8 @@ is not proven because the tenant who made it still works.
 
 Current tenants: `veracrm` (adiwave.com, adiwave.group) · `granite` (granite-security.org,
 sichocolate.com) · `me-funnel` (me.adiwave.group). Planned: `tailwindating.com`, `calmapago.com`,
-`graelyn.com`.
+`graelyn.com`, and `gandalf` (`gandalf.axiomsynergy.ai`, namespace `gandalf`; see
+[`docs/operations/gandalf-tenant-onboarding.md`](../docs/operations/gandalf-tenant-onboarding.md)).
 
 ## Operational rule — what counts as proof
 
