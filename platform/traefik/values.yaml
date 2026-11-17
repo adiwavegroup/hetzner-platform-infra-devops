@@ -89,6 +89,13 @@ ports:
   websecure:
     port: 443
     containerPort: 443
+    # Keep TCP/443 for HTTP/1.1 and HTTP/2, and add UDP/443 for HTTP/3/QUIC.
+    # This DaemonSet uses hostNetwork, so the UDP socket is bound directly on
+    # the dedicated server's public interface. The chart also renders the
+    # corresponding UDP service port without changing the existing TCP port.
+    http3:
+      enabled: true
+      advertisedPort: 443
 # Pod-level default is permissive (runAsNonRoot: false) so the setcap init container
 # above can run as root; the main container's own securityContext below still pins it
 # to non-root — container-level settings win over the pod-level default per container.
