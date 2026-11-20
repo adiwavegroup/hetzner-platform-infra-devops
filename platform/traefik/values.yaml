@@ -133,3 +133,30 @@ gateway:
   # The GatewayClass named "traefik" is still created by providers.kubernetesGateway
   # above; verify with `kubectl get gatewayclass` after install (see cloudify.md).
   enabled: false
+
+# TEMPORARY TLS POLICY -- expires 2027-02-28.
+# Post-quantum hybrid key exchange (X25519MLKEM768) is preferred for TLS 1.3 clients.
+# Classic groups stay in the list so non-PQ clients still negotiate.
+# minVersion is TLS 1.2 (not 1.3) for the first measurement window, so clients that
+# only speak TLS 1.2 can still log in and appear in access logs (User-Agent + TLS
+# version). Review the logs before the expiry date, then tighten or keep as decided.
+# Revert: set minVersion to VersionTLS13 once the measurement window closes.
+tlsOptions:
+  default:
+    minVersion: VersionTLS12
+    curvePreferences:
+      - X25519MLKEM768
+      - X25519
+      - CurveP256
+
+# TEMPORARY MEASUREMENT -- expires 2027-02-28.
+# Logs User-Agent (header dropped by default) so clients that cannot complete a login
+# over TLS 1.3 can be identified. Filter on the TLS version field, the login path and
+# 4xx status. Remove or reset after the window.
+accessLog:
+  enabled: true
+  format: json
+  fields:
+    headers:
+      names:
+        User-Agent: keep
