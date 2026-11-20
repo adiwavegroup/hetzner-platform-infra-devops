@@ -2,7 +2,7 @@
 #
 # At interactive root login on hetzner-adiwave-vera1:
 #   1. shows the Traefik access log size (read live)
-#   2. shows /root/summary.txt, written every 2 hours by build-root-summary.sh (max 50 lines)
+#   2. shows /root/summary.txt, written every 2 hours by build-root-summary.sh (max 64 lines)
 # Silent for non-root users. Read-only.
 #
 # Install on the node (as root):
@@ -22,6 +22,6 @@ if [ "$(id -u)" = "0" ] && [ -f /mnt/access-logs/access.log ]; then
 fi
 
 if [ "$(id -u)" = "0" ] && [ -r /root/summary.txt ]; then
-  head -n 50 /root/summary.txt
+  head -n 64 /root/summary.txt
   echo ""
 fi
