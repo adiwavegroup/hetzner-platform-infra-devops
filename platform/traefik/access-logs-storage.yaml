@@ -1,0 +1,56 @@
+# Persistent storage for Traefik access logs (single Hetzner node, Debian host).
+#
+# Host prerequisites (run once on the node, as root):
+#   mkdir -p /mnt/access-logs
+#   chown 65532:65532 /mnt/access-logs   # Traefik runs as uid/gid 65532
+#   chmod 0750 /mnt/access-logs
+#
+# Contains client IP, requested URI and User-Agent: restrict host access to root and
+# the audit/ops group. Do not expose this path over any network share.
+#
+# Retention: Retain. Deleting the PVC does NOT delete logs on the host.
+#
+# REPLACE_NODE_NAME must be the kubernetes.io/hostname of the single node
+# (kubectl get nodes -o wide). Do not apply with the placeholder.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: traefik-access-logs
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/component: access-logs
+spec:
+  capacity:
+    storage: 50Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: access-logs-local
+  hostPath:
+    path: /mnt/access-logs
+    type: Directory
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - REPLACE_NODE_NAME
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: traefik-access-logs
+  namespace: traefik
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/component: access-logs
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: access-logs-local
+  volumeName: traefik-access-logs
+  resources:
+    requests:
+      storage: 50Gi

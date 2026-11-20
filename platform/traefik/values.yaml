@@ -66,11 +66,17 @@ deployment:
   additionalVolumes:
     - name: traefik-bin
       emptyDir: {}
+    # Access logs on the host via platform/traefik/access-logs-storage.yaml (PVC traefik-access-logs).
+    - name: access-logs
+      persistentVolumeClaim:
+        claimName: traefik-access-logs
 additionalVolumeMounts:
   - name: traefik-bin
     # Overlays the setcap'd binary copy over the image's original (uncapped) one at
     # the same path, so the main container needs no command/args change.
     mountPath: /usr/local/bin
+  - name: access-logs
+    mountPath: /var/log/traefik
 hostNetwork: true
 # The chart's default (maxUnavailable: 0, relying on maxSurge for zero-downtime rollout)
 # is rejected outright when hostNetwork is true: a surge pod would need to bind the same
@@ -82,6 +88,26 @@ updateStrategy:
   rollingUpdate:
     maxUnavailable: 1
     maxSurge: 0
+# Access log file on the PVC. Chart has no accessLog.filePath key, so set the flag directly.
+additionalArguments:
+  - --accesslog.filepath=/var/log/traefik/access.log
+accessLog:
+  enabled: true
+  format: json
+  # Buffer up to 2048 log lines in memory so slow disk / log-collector backpressure
+  # does not stall active client connections during bursts of concurrent logins.
+  # Trade-off: a SIGKILL can lose the lines still in the buffer. Keep
+  # terminationGracePeriodSeconds long enough for Traefik to flush on shutdown.
+  bufferingSize: 2048
+  # No filters: keep every request (no statusCodes / minDuration / retryAttempts filters).
+  fields:
+    # Keep all default fields (ClientHost, RequestHost, RequestPath, RequestAddr, DownstreamStatus, TLSVersion...).
+    defaultMode: keep
+    headers:
+      # Drop all headers except User-Agent (headers.defaultMode is drop by default).
+      defaultMode: drop
+      names:
+        User-Agent: keep
 ports:
   web:
     port: 80
