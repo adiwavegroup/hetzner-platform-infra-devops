@@ -10,7 +10,7 @@
 #
 # Retention: Retain. Deleting the PVC does NOT delete logs on the host.
 #
-# hetzner-adiwave-vera1 must be the kubernetes.io/hostname of the single node
+# node1 must be the kubernetes.io/hostname of the single node
 # (kubectl get nodes -o wide). Do not apply with the placeholder.
 apiVersion: v1
 kind: PersistentVolume
@@ -36,7 +36,7 @@ spec:
             - key: kubernetes.io/hostname
               operator: In
               values:
-                - hetzner-adiwave-vera1
+                - node1
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
