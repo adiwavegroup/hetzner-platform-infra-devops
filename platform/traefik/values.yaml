@@ -66,11 +66,17 @@ deployment:
   additionalVolumes:
     - name: traefik-bin
       emptyDir: {}
+    # Access logs on the host via platform/traefik/access-logs-storage.yaml (PVC traefik-access-logs).
+    - name: access-logs
+      persistentVolumeClaim:
+        claimName: traefik-access-logs
 additionalVolumeMounts:
   - name: traefik-bin
     # Overlays the setcap'd binary copy over the image's original (uncapped) one at
     # the same path, so the main container needs no command/args change.
     mountPath: /usr/local/bin
+  - name: access-logs
+    mountPath: /var/log/traefik
 hostNetwork: true
 # The chart's default (maxUnavailable: 0, relying on maxSurge for zero-downtime rollout)
 # is rejected outright when hostNetwork is true: a surge pod would need to bind the same
@@ -153,10 +159,22 @@ tlsOptions:
 # Logs User-Agent (header dropped by default) so clients that cannot complete a login
 # over TLS 1.3 can be identified. Filter on the TLS version field, the login path and
 # 4xx status. Remove or reset after the window.
+# Access log file on the PVC. Chart has no accessLog.filePath key, so set the flag directly.
+additionalArguments:
+  - --accesslog.filepath=/var/log/traefik/access.log
 accessLog:
   enabled: true
   format: json
+  # No buffering: every request line is written before the response is finished,
+  # so a SIGKILL cannot drop audit lines. Latency cost to be measured after rollout.
+  bufferingSize: 0
+  # No filters: keep every request (no statusCodes / minDuration / retryAttempts filters).
+  # Internal Traefik resources are not logged by default.
   fields:
+    # Keep all default fields (ClientHost, RequestHost, RequestPath, RequestAddr, DownstreamStatus, TLSVersion...).
+    defaultMode: keep
     headers:
+      # Drop all headers except User-Agent (headers.defaultMode is drop by default).
+      defaultMode: drop
       names:
         User-Agent: keep
