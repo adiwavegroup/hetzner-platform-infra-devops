@@ -15,11 +15,14 @@ trap 'rm -f "$TMP"' EXIT
 {
   echo "Generated: $(date '+%Y-%m-%d %H:%M %Z') on $(hostname)"
 
+  echo "--- Node usage (kubectl top nodes) ---"
+  kubectl top nodes 2>&1 | head -n 3
+
   echo "--- Pods not Running/Completed (all namespaces, top 15) ---"
-  kubectl get pods -A --no-headers 2>&1 | awk '$4 != "Running" && $4 != "Completed"' | head -n 15
+  kubectl get pods -A --no-headers 2>&1 | awk '$4 != "Running" && $4 != "Completed"' | head -n 10
 
   echo "--- Pods with restarts (top 10) ---"
-  kubectl get pods -A --no-headers 2>&1 | awk '$5+0 > 0' | sort -k5 -rn | head -n 10
+  kubectl get pods -A --no-headers 2>&1 | awk '$5+0 > 0' | sort -k5 -rn | head -n 5
 
   echo "--- Traefik ---"
   kubectl -n traefik get pods --no-headers 2>&1 | head -n 3
