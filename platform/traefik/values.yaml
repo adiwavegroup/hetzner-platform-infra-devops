@@ -165,9 +165,11 @@ additionalArguments:
 accessLog:
   enabled: true
   format: json
-  # No buffering: every request line is written before the response is finished,
-  # so a SIGKILL cannot drop audit lines. Latency cost to be measured after rollout.
-  bufferingSize: 0
+  # Buffer up to 2048 log lines in memory so slow disk / log-collector backpressure
+  # does not stall active client connections during bursts of concurrent logins.
+  # Trade-off: a SIGKILL can lose the lines still in the buffer. Keep
+  # terminationGracePeriodSeconds long enough for Traefik to flush on shutdown.
+  bufferingSize: 2048
   # No filters: keep every request (no statusCodes / minDuration / retryAttempts filters).
   # Internal Traefik resources are not logged by default.
   fields:
