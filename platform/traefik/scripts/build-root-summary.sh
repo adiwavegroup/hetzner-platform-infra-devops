@@ -15,6 +15,9 @@ trap 'rm -f "$TMP"' EXIT
 {
   echo "Generated: $(date '+%Y-%m-%d %H:%M %Z') on $(hostname)"
 
+  echo "--- Node usage (kubectl top nodes) ---"
+  kubectl top nodes 2>&1 | head -n 3
+
   echo "--- Pods not Running/Completed (all namespaces, top 15) ---"
   kubectl get pods -A --no-headers 2>&1 | awk '$4 != "Running" && $4 != "Completed"' | head -n 15
 
@@ -39,9 +42,9 @@ trap 'rm -f "$TMP"' EXIT
   /usr/local/sbin/scan-container-errors.sh 120 50 5 2>&1 | head -n 8
 } > "$TMP"
 
-# Hard cap: header + 47 body lines + footer = 49 lines (under the 50-line limit).
+# Hard cap: header + 62 body lines + footer = 64 lines.
 {
   echo "=== K8S pods status summary ==="
-  head -n 47 "$TMP"
+  head -n 62 "$TMP"
   echo "=== end summary ==="
 } > "$OUT.new" && chmod 0600 "$OUT.new" && mv "$OUT.new" "$OUT"
